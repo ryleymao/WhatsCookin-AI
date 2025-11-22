@@ -2,11 +2,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Toggle this flag to swap between mock API (no backend needed) and real backend calls
-export const USE_MOCK_API = true;
+export const USE_MOCK_API = false;
 
 // On a real device, DON'T use localhost; use your computer's LAN IP.
 // Example: "http://192.168.1.20:8000"
-const BASE_URL = "http://YOUR-IP-OR-DOMAIN:8000";
+const BASE_URL = "http://http://127.0.0.1:8000";
 
 const TOKEN_KEY = "accessToken";
 
@@ -109,7 +109,7 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
     throw new Error(message);
   }
 
-  // 204 No Content (e.g., delete) — nothing to parse
+  // 204 No Content (e.g., delete) ï¿½ nothing to parse
   if (res.status === 204) return null;
 
   return res.json();
