@@ -2,7 +2,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Toggle this flag to swap between mock API (no backend needed) and real backend calls
-export const USE_MOCK_API = false;
+export const USE_MOCK_API = true;
 
 // On a real device, DON'T use localhost; use your computer's LAN IP.
 // Ryleys IP: 192.168.1.142
@@ -69,32 +69,31 @@ async function mockDeleteRecipe(recipeId) {
   return null;
 }
 
+async function mockAnalyzeIngredients() {
+  await delay(MOCK_LATENCY_MS);
+  return { ingredients: ["tomato", "basil", "mozzarella"] };
+}
+
+async function mockGetRecipeRecommendations(ingredients = []) {
+  await delay(MOCK_LATENCY_MS);
+  if (!ingredients.length) {
+    throw new Error("Ingredients list cannot be empty (mock)");
+  }
+  return {
+    recommendations: [
+      { title: "Margherita Pizza", description: "Tomato, basil, mozzarella" },
+      { title: "Caprese Salad", description: "Fresh tomatoes, basil, and cheese" },
+    ],
+  };
+}
+
 async function mockPing() {
   await delay(MOCK_LATENCY_MS);
   return { message: "Hello from the mock API" };
 }
 
 // --- Internal helper for making real requests ---
-async function request(path, { method = "GET", body, auth = false } = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  // Attach token for protected routes
-  if (auth) {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      throw new Error("Not authenticated");
-    }
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
+async function handleResponse(res) {
   if (!res.ok) {
     // Try to parse FastAPI error body: {"detail": "..."}
     let message = `Request failed with status ${res.status}`;
@@ -109,10 +108,40 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
     throw new Error(message);
   }
 
-  // 204 No Content (e.g., delete) � nothing to parse
+  // 204 No Content (e.g., delete) - nothing to parse
   if (res.status === 204) return null;
 
   return res.json();
+}
+
+async function request(path, { method = "GET", body, auth = false, headers: extraHeaders = {} } = {}) {
+  const headers = {};
+
+  // Only set JSON content type when not uploading files
+  if (!(body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  // Attach token for protected routes
+  if (auth) {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      throw new Error("Not authenticated");
+    }
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: { ...headers, ...extraHeaders },
+    body: body
+      ? body instanceof FormData
+        ? body
+        : JSON.stringify(body)
+      : undefined,
+  });
+
+  return handleResponse(res);
 }
 
 // --- Auth helpers ---
@@ -183,6 +212,56 @@ export async function deleteRecipe(recipeId) {
     auth: true,
   });
   // Backend returns 204 No Content, so nothing to return
+}
+
+// --- AI + recommendations endpoints ---
+
+// POST /analyze-ingredients (multipart/form-data with image file) (requires auth)
+// Returns: { ingredients: [...] }
+export async function analyzeIngredients(image) {
+  if (USE_MOCK_API) return mockAnalyzeIngredients();
+
+  const imageData =
+    typeof image === "string"
+      ? { uri: image, name: "photo.jpg", type: "image/jpeg" }
+      : image || {};
+
+  if (!imageData.uri) {
+    throw new Error("Image URI is required to analyze ingredients");
+  }
+
+  const formData = new FormData();
+  formData.append("file", {
+    uri: imageData.uri,
+    name: imageData.name || "photo.jpg",
+    type: imageData.type || "image/jpeg",
+  });
+
+  const data = await request("/analyze-ingredients", {
+    method: "POST",
+    body: formData,
+    auth: true,
+  });
+
+  return data;
+}
+
+// POST /get-recipes with { ingredients: [...] } (requires auth)
+// Returns: { recommendations: [...] }
+export async function getRecipeRecommendations(ingredients = []) {
+  if (USE_MOCK_API) return mockGetRecipeRecommendations(ingredients);
+
+  if (!Array.isArray(ingredients) || ingredients.length === 0) {
+    throw new Error("Ingredients list cannot be empty");
+  }
+
+  const data = await request("/get-recipes", {
+    method: "POST",
+    body: { ingredients },
+    auth: true,
+  });
+
+  return data;
 }
 
 // --- Optional: simple health check for "/" ---

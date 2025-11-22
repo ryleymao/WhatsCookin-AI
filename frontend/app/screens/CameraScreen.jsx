@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Button, StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import * as MediaLibrary from 'expo-media-library';
+import { analyzeIngredients } from '../api/api';
 
 export default function CameraScreen() {
   const router = useRouter();
@@ -14,11 +14,9 @@ export default function CameraScreen() {
 
   const [facing, setFacing] = useState(back);
   const [image, setImage] = useState(null); // { uri, width, height }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const cameraRef = useRef(null);
-
-  useEffect(() => {
-    MediaLibrary.requestPermissionsAsync();
-  }, []);
 
   const toggleFacing = () => {
     setFacing((prev) => (prev === back ? front : back));
@@ -42,21 +40,29 @@ export default function CameraScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync();
       setImage(photo);
+      setError('');
     } catch (error) {
       console.error('Error taking picture:', error);
     }
   };
 
-  const saveCurrentPhoto = async () => {
-    if (!image?.uri) return;
+  const analyzePhoto = async () => {
+    if (!image?.uri || loading) return;
+    setLoading(true);
+    setError('');
     try {
-      await MediaLibrary.saveToLibraryAsync(image.uri);
-      console.log('Photo saved to gallery:', image.uri);
-    } catch (error) {
-      console.error('Error saving picture:', error);
+      const result = await analyzeIngredients(image);
+      const parsed = result?.ingredients || [];
+      router.push({
+        pathname: '/screens/IngredientListScreen',
+        params: { ingredients: JSON.stringify(parsed) },
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to analyze image');
+    } finally {
+      setLoading(false);
     }
   };
-
 
   return (
     <View style={styles.container}>
@@ -91,13 +97,18 @@ export default function CameraScreen() {
             resizeMode="contain"
           />
           <View style={styles.previewActions}>
-            <TouchableOpacity onPress={saveCurrentPhoto} style={[styles.control, styles.save]}>
-              <Text style={styles.controlText}>Save</Text>
+            <TouchableOpacity
+              onPress={analyzePhoto}
+              style={[styles.control, styles.analyze, loading && styles.disabled]}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.controlText}>Analyze</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setImage(null)} style={[styles.control, styles.retake]}>
               <Text style={styles.controlText}>Retake</Text>
             </TouchableOpacity>
           </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       )}
     </View>
@@ -143,6 +154,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
+  disabled: {
+    opacity: 0.6,
+  },
   preview: {
     width: '100%',
     minHeight: 140,
@@ -162,10 +176,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-  save: {
+  analyze: {
     backgroundColor: '#2e7d32',
   },
   retake: {
     backgroundColor: '#444',
+  },
+  error: {
+    color: '#ff5252',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
