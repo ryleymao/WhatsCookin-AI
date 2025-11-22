@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
 from sqlalchemy.orm import Session
 from database import engine, get_db
-from schemas import UserCreate, UserResponse, UserLogin, Token, Recipes
+from schemas import UserCreate, UserResponse, UserLogin, Token, RecipeResponse, IngredientsResponse, RecipeRecommendationRequest, RecipeRecommendationsResponse
 from models import User, Recipes
+import openai_service
 from auth import hash_password, verify_password, create_access_token, verify_token
 from models import Base
 import uvicorn
@@ -16,7 +17,7 @@ app = FastAPI()
 # Define a path opperation for the root URL that responds to get requests 
 @app.get("/")
 def root():
-    return {"message": "Hello world"}
+    return {"message": "Whats Cookin AI"}
 
 # Endpoint to register
 @app.post("/register", response_model=UserResponse)
@@ -102,4 +103,4 @@ def get_recipes(
 
 # Starts server make it accessable on http
 if __name__ == '__main__':
-    uvicorn.run(app, host="0:0:0:0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,8 +1,0 @@
-pyclean
-fastapi
-uvicorn
-sqlalchemy
-jwt
-passlib
-python-jose
-psycopg2

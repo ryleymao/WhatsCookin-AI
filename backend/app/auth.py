@@ -1,9 +1,13 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from jose import jwt
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # JWT Tokens (JSON Web Token) when you log in server gives you this pass and every time you make request you show this
-SECRET_KEY = "your-secret-key-change-this-in-production" # Secret password only the server knows used to sign tokens no one can fake
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production") # Secret password only the server knows used to sign tokens no one can fake
 ALGORITHM = "HS256" # The encription method used to sign the tokens
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Tokens expires after 30 min for security
 

@@ -18,3 +18,4 @@ class Recipes(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     ingredients = Column(ARRAY(String), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
