@@ -77,7 +77,7 @@ def delete_recipes(recipe_id: int, db: Session = Depends(get_db), user: User = D
     db.delete(db_recipe)
     db.commit()
 
-# Read all recipes for user
+# API to Read all recipes for user
 @app.get("/recipes")
 def get_recipes(
     page: int = 1, # Query parameter, defaults to page 1
@@ -100,6 +100,41 @@ def get_recipes(
         "limit": limit,
         "total": total # Total count so front end knows how many pages exist
     }
+
+# API to analyze image and detect ingredients
+@app.post("/analyze-ingredients", response_model=IngredientsResponse)
+async def analyze_ingredients( # this function can pause and resume
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user)
+):
+    """
+    Receives an image file, sends to OpenAI Vision, returns detected ingredients.
+    
+    Flow:
+    1. Mobile app uploads image
+    2. We read the image bytes
+    3. Send to OpenAI service
+    4. Return list of ingredients to user
+    """
+    # Read the uploaded image file into bytes
+    image_bytes = await file.read() # await to read file server work on other requests (pause here let other users request run, resume when ready)
+    
+    # Call our OpenAI service to analyze the image
+    ingredients = openai_service.analyze_ingredients_from_image(image_bytes)
+
+    # Return the ingredients list
+    return {"ingredients": ingredients}
+
+# Endpoint to get recipe recommendations
+@app.post("/get-recipes", response_model=RecipeRecommendationsResponse)
+def get_recipe_recommendations_endpoint(
+    request: RecipeRecommendationRequest,
+    user: User = Depends(get_current_user)
+):
+    # Call OpenAI service to get recipe recommendations
+    recommendations = openai_service.get_recipe_recommendations(request.ingredients)
+
+    return {"recommendations": recommendations}
 
 # Starts server make it accessable on http
 if __name__ == '__main__':
