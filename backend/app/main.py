@@ -71,7 +71,7 @@ def get_current_user(authorization: str = Header(...), db: Session = Depends(get
 def delete_recipes(recipe_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db_recipe = db.query(Recipes).filter(Recipes.id == recipe_id).first()
     if not db_recipe:
-        raise HTTPException(status_code=404, detail="Todo not found")
+        raise HTTPException(status_code=404, detail="Recipe not found")
     if db_recipe.user_id != user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
     db.delete(db_recipe)
@@ -109,18 +109,33 @@ async def analyze_ingredients( # this function can pause and resume
 ):
     """
     Receives an image file, sends to OpenAI Vision, returns detected ingredients.
-    
+
     Flow:
     1. Mobile app uploads image
     2. We read the image bytes
     3. Send to OpenAI service
     4. Return list of ingredients to user
     """
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image (JPEG, PNG, etc.)")
+
     # Read the uploaded image file into bytes
     image_bytes = await file.read() # await to read file server work on other requests (pause here let other users request run, resume when ready)
-    
+
+    # Check if file is empty
+    if len(image_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
     # Call our OpenAI service to analyze the image
-    ingredients = openai_service.analyze_ingredients_from_image(image_bytes)
+    try:
+        ingredients = openai_service.analyze_ingredients_from_image(image_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable. Please try again.")
+
+    # Check if any ingredients were detected
+    if not ingredients or len(ingredients) == 0:
+        raise HTTPException(status_code=400, detail="No ingredients detected in image. Please try a clearer photo.")
 
     # Return the ingredients list
     return {"ingredients": ingredients}
@@ -131,8 +146,19 @@ def get_recipe_recommendations_endpoint(
     request: RecipeRecommendationRequest,
     user: User = Depends(get_current_user)
 ):
+    # Validate ingredients list
+    if not request.ingredients or len(request.ingredients) == 0:
+        raise HTTPException(status_code=400, detail="Ingredients list cannot be empty")
+
     # Call OpenAI service to get recipe recommendations
-    recommendations = openai_service.get_recipe_recommendations(request.ingredients)
+    try:
+        recommendations = openai_service.get_recipe_recommendations(request.ingredients)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable. Please try again.")
+
+    # Check if any recommendations were returned
+    if not recommendations or len(recommendations) == 0:
+        raise HTTPException(status_code=400, detail="No recipes found for these ingredients. Try different ingredients.")
 
     return {"recommendations": recommendations}
 
