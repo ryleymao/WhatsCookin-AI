@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getRecipeRecommendations } from '../api/api';
 
@@ -43,6 +43,20 @@ export default function RecipeRecommendationScreen() {
     fetchRecommendations();
   }, [ingredientList]);
 
+  const handleOpenLink = async (url) => {
+    if (!url) return;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        setError('Cannot open this link');
+      }
+    } catch {
+      setError('Failed to open link');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Recipe Recommendations</Text>
@@ -60,13 +74,21 @@ export default function RecipeRecommendationScreen() {
       {!loading && !error && recipes.length > 0 && (
         <FlatList
           data={recipes}
-          keyExtractor={(item, index) => `${item.title || 'recipe'}-${index}`}
-          renderItem={({ item }) => (
-            <View style={styles.recipeCard}>
-              <Text style={styles.recipeTitle}>{item.title || 'Untitled Recipe'}</Text>
-              {item.description ? <Text style={styles.recipeDesc}>{item.description}</Text> : null}
-            </View>
-          )}
+          keyExtractor={(item, index) => `${item.name || item.title || 'recipe'}-${index}`}
+          renderItem={({ item }) => {
+            const name = item.name || item.title || 'Untitled Recipe';
+            const link = item.link || item.url || item.description || '';
+            return (
+              <View style={styles.recipeCard}>
+                <Text style={styles.recipeTitle}>{name}</Text>
+                {link ? (
+                  <TouchableOpacity onPress={() => handleOpenLink(link)}>
+                    <Text style={styles.recipeLink}>{link}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            );
+          }}
           contentContainerStyle={styles.listContent}
         />
       )}
@@ -139,8 +161,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 4,
   },
-  recipeDesc: {
-    color: '#ccc',
+  recipeLink: {
+    color: '#9cf',
     fontSize: 14,
   },
   button: {

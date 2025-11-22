@@ -6,7 +6,7 @@ export const USE_MOCK_API = false;
 
 // On a real device, DON'T use localhost; use your computer's LAN IP.
 // Ryleys IP: 192.168.1.142
-const BASE_URL = "http://192.168.1.142:8000";
+const BASE_URL = "http://192.168.50.24:8000";
 
 const TOKEN_KEY = "accessToken";
 
